@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OpenVR Wayland Desktop
+Comment=Wayland desktop overlay for OpenVR / SteamVR
+Exec=openvr_desktop_overlay
+Icon=openvr_desktop_overlay
+Categories=Utility;
+Terminal=false

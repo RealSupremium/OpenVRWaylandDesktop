@@ -1,0 +1,76 @@
+name: Build App Inside Docker Hub Container
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install System Dependencies
+        run: |
+          sed -i 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list
+          echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            git \
+            curl \
+            ca-certificates \
+            xz-utils \
+            libwayland-dev \
+            wayland-protocols \
+            libwayland-bin \
+            libpipewire-0.3-dev \
+            libglib2.0-dev \
+            libvulkan-dev \
+            libxkbcommon-dev \
+            nlohmann-json3-dev \
+            libsdl3-dev \
+            fuse \
+            libfuse2 \
+            file
+          curl -fsSL https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-x64.tar.xz | tar -xJ -C /usr/local --strip-components=1
+
+      - name: Download and Install OpenVR SDK
+        run: |
+          git clone --depth 1 https://github.com/ValveSoftware/openvr.git /tmp/openvr
+          mkdir -p /usr/local/include/openvr
+          cp /tmp/openvr/headers/* /usr/local/include/openvr/
+          cp /tmp/openvr/bin/linux64/libopenvr_api.so /usr/local/lib/
+          ldconfig
+
+      - name: Configure and Build Application
+        run: |
+          export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G Ninja
+          cmake --build build --config Release --parallel $(nproc)
+
+      - name: Build AppImage Package
+        run: |
+          chmod +x scripts/build_appimage.sh
+          ./scripts/build_appimage.sh
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvr-wayland-desktop-appimage
+          path: |
+            out/*.AppImage
+            build/openvr_desktop_overlay
+            build/libopenvr_api.so
